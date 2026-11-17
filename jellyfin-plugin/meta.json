@@ -1,0 +1,15 @@
+{
+  "category": "General",
+  "changelog": "Full original choice data, in-player choices for jellyfin-web via File Transformation, Jellyfin 12.4 / .NET 10.",
+  "description": "Interactive Black Mirror: Bandersnatch with choices inside the Jellyfin web player.",
+  "guid": "42d83eb8-b6b2-4b1b-b3d9-0c2f2b3b5a6c",
+  "name": "Interactive Video Player",
+  "overview": "Choice-based playback of Bandersnatch in jellyfin-web and at /InteractiveVideo/Player/{ItemId}.",
+  "owner": "adamhornofmedia",
+  "targetAbi": "12.4.0.0",
+  "timestamp": "2026-11-17T00:00:00.0000000Z",
+  "version": "1.2.0.0",
+  "status": "Active",
+  "autoUpdate": false,
+  "assemblies": []
+}

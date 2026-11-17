@@ -1,239 +1,83 @@
-# BandersnatchInteractive - Jellyfin Plugin
+# Bandersnatch Interactive for Jellyfin
 
-An interactive video player plugin for Jellyfin that enables choice-based navigation and branching storylines for Black Mirror: Bandersnatch.
+Watch **Black Mirror: Bandersnatch** interactively on your own Jellyfin server, with the
+choices shown right inside the normal Jellyfin player (web browser, Jellyfin iOS/Android app).
 
-> **Forked from**: [mehotkhan/BandersnatchInteractive](https://github.com/mehotkhan/BandersnatchInteractive)  
-> This repository extends the original standalone HTML5 player to work as a native Jellyfin plugin.
+This version is a rework of the Jellyfin plugin for **Jellyfin 12.4 / .NET 10**:
 
-## ✨ Features
+- **Choices inside the native Jellyfin web player.** The plugin injects a small script into
+  jellyfin-web (via the [File Transformation](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)
+  plugin). When the playing video is the 5:12:14 Bandersnatch file, choice buttons appear over the
+  player and the script jumps between scenes. Nothing changes for any other video.
+- **Complete, original choice data.** Uses the full Netflix branching data (~250 scenes, all choices,
+  the phone code, all endings) instead of the simplified 5-choice list of the previous plugin,
+  which had wrong labels and swapped choices.
+- **Touch friendly.** Works with taps on iPhone/iPad (Jellyfin iOS app) and with the mouse in a browser.
+- **Story status.** Move the mouse / tap to see minutes watched in this run, number of choices made,
+  and endings found so far (the Jellyfin progress bar is meaningless for this film).
+- **Standalone page** with the full original player is still available at
+  `/InteractiveVideo/Player/{ItemId}` (16 subtitle languages).
 
-- �� **Full Interactive Playbook**: Complete choice-based navigation with branching storylines
-- ⌨️ **Keyboard Controls**: All original controls plus new speed control features
-- 📺 **Jellyfin Integration**: Native plugin that streams directly from your Jellyfin server
-- 🎯 **Choice Management**: Visual choice overlays with countdown timers
-- 📝 **Subtitle Support**: Integrated English subtitles with toggle functionality
-- 🎮 **Speed Control**: Stepped playbook speed (0.25x to 4x) with instant reset
-- 💾 **State Persistence**: Remembers your choices and progress across sessions
-- 🏪 **Plugin Repository**: Easy installation via Jellyfin's plugin repository system
+## Limitations
 
-## 🎮 Keyboard Controls
+- Works only where jellyfin-web plays the video in an HTML `<video>` element:
+  browsers, Jellyfin iOS app, Jellyfin Android (mobile) app with the web player.
+- **Not** in the native Android TV app, Swiftfin, or Jellyfin Media Player / Jellyfin Desktop
+  (they play video natively, there is nothing to hook into). There it plays as a normal 5-hour video.
+- Choices and progress are stored per device (browser localStorage).
 
-| Key | Function |
-|-----|----------|
-| `F` | Toggle fullscreen |
-| `R` | Restart video |
-| `Space` | Play/pause (when not choosing) |
-| `←` `→` | Navigate choices OR jump between segments |
-| `↑` `↓` | Speed up/slow down playbook |
-| `0` | Reset speed to 1.0x |
-| `Enter` | Select highlighted choice |
-| `S` | Toggle subtitles |
+## Requirements
 
-## 🛠️ Requirements
+- Jellyfin 12.4 (built against the server's own `MediaBrowser.*.dll`, .NET 10)
+- [File Transformation](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation) plugin
+- The Bandersnatch video with duration **5:12:14**, e.g. `Black.Mirror.Bandersnatch.2018.720p.WEB-DL.x264.DUAL.mkv`
 
-- **Jellyfin Server**: Version 10.8.0 or later
-- **.NET SDK**: Version 6.0 or later (for building from source)
-- **Video File**: Black Mirror Bandersnatch (5:12:14 duration)
-  - Tested with: `Black.Mirror.Bandersnatch.2018.720p.WEB-DL.x264.DUAL.mkv`
-- **Browser**: Chrome/Chromium (recommended)
+### Prepare the video
 
-## 🚀 Installation
+Browsers must be able to direct-play the file. Remux it to MP4 with an AAC audio track
+(no re-encode, the timing stays exact):
 
-### Option 1: Plugin Repository (Recommended)
-
-1. **Add Plugin Repository**:
-   - Open Jellyfin Admin Dashboard
-   - Navigate to **Plugins** → **Repositories** 
-   - Click the **+** button to add a repository
-   - **Repository Name**: `BandersnatchInteractive-Jellyfin`
-   - **Repository URL**: `https://raw.githubusercontent.com/deathrjj/BandersnatchInteractive-Jellyfin/master/manifest.json`
-   - Click **Save**
-
-2. **Install Plugin**:
-   - Go to **Plugins** → **Catalog**
-   - Find **Interactive Video Player** 
-   - Click **Install**
-   - Restart Jellyfin server when prompted
-
-3. **Usage**:
-   - Navigate to: `https://your-jellyfin-server/InteractiveVideo/Player/{ItemId}`
-   - Replace `{ItemId}` with your Bandersnatch video's Item ID
-
-### Option 2: Download Release
-
-1. Download the latest release from [Releases](https://github.com/deathrjj/BandersnatchInteractive-Jellyfin/releases)
-2. Extract the plugin files
-3. Copy to your Jellyfin plugins directory:
-   - **Linux**: `/var/lib/jellyfin/plugins/InteractiveVideo/`
-   - **macOS**: `~/.local/share/jellyfin/plugins/InteractiveVideo/`
-   - **Windows**: `%PROGRAMDATA%\Jellyfin\Server\plugins\InteractiveVideo\`
-4. Restart Jellyfin server
-5. Navigate to: `https://your-jellyfin-server/InteractiveVideo/Player/{ItemId}`
-
-### Option 3: Build from Source
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/deathrjj/BandersnatchInteractive-Jellyfin.git
-   cd BandersnatchInteractive-Jellyfin
-   ```
-
-2. **Install .NET SDK** (if not already installed):
-   ```bash
-   # macOS (via Homebrew)
-   brew install dotnet
-
-   # Linux (Ubuntu/Debian)
-   sudo apt-get update
-   sudo apt-get install -y dotnet-sdk-6.0
-
-   # Windows - Download from https://dotnet.microsoft.com/download
-   ```
-
-3. **Build the plugin**:
-   ```bash
-   cd jellyfin-plugin
-   chmod +x build.sh
-   ./build.sh
-   ```
-
-4. **Install the built plugin**:
-   ```bash
-   # The build script creates a 'plugin' folder in the root directory
-   # Copy its contents to your Jellyfin plugins directory
-   cp -r ../plugin/* /var/lib/jellyfin/plugins/InteractiveVideo/
-   ```
-
-5. **Restart Jellyfin server**
-
-## 📖 Usage
-
-### Finding Your Item ID
-
-1. Open Jellyfin web interface
-2. Navigate to your Bandersnatch video
-3. Look at the URL: `/web/index.html#!/details?id={ItemId}`
-4. Copy the Item ID from the URL
-
-### Accessing the Interactive Player
-
-Navigate to: `https://your-jellyfin-server/InteractiveVideo/Player/{ItemId}`
-
-Replace `{ItemId}` with your Bandersnatch video's Item ID.
-
-### First Time Setup
-
-1. The video will load automatically from Jellyfin
-2. Click the play button when prompted (browser autoplay policy)
-3. Use keyboard controls to navigate
-4. Press `S` to toggle English subtitles
-5. Enjoy the interactive experience!
-
-## 🎯 How It Works
-
-The plugin integrates with Jellyfin's streaming infrastructure while adding interactive capabilities:
-
-- **Video Streaming**: Uses Jellyfin's native video streaming (`/Videos/{itemId}/stream`)
-- **Interactive Metadata**: Embedded JSON defines choice points and branching logic
-- **Choice Detection**: Monitors video timeline for predefined decision moments
-- **Segment Jumping**: Seamlessly transitions between different story paths
-- **State Management**: Tracks user choices and viewing progress
-
-## 🏗️ Project Structure
-
-```
-BandersnatchInteractive-Jellyfin/
-├── .github/workflows/           # GitHub Actions for automated releases
-├── jellyfin-plugin/             # Jellyfin plugin source code
-│   ├── Api/                     # REST API controllers
-│   ├── Web/                     # Frontend assets (HTML, JS, CSS)
-│   ├── Configuration/           # Plugin configuration
-│   ├── build.sh                 # Build script
-│   └── *.cs                     # C# source files
-├── plugin/                      # Built plugin output (created by build)
-├── assets/                      # Original BandersnatchInteractive assets
-├── subtitle/                    # Subtitle files (multiple languages)
-├── manifest.json                # Plugin repository manifest
-├── build.yaml                   # Plugin metadata
-└── README.md                    # This file
+```bash
+ffmpeg -i Black.Mirror.Bandersnatch.2018.720p.WEB-DL.x264.DUAL.mkv \
+  -map 0:v:0 -map 0:a:1 -c copy -movflags +faststart "Black Mirror Bandersnatch (2018).mp4"
 ```
 
-## 🔧 Development
+(`0:a:1` is the English AAC track in that release, the first track is Portuguese E-AC3.)
+Add the MP4 to a movie library.
 
-### Building
+## Build
 
 ```bash
 cd jellyfin-plugin
-./build.sh
+dotnet build -c Release -o out -p:JellyfinDir="C:\Program Files\Jellyfin\Server"
 ```
 
-### Debugging
+`JellyfinDir` must point to the folder with your server's `MediaBrowser.Common.dll`,
+`MediaBrowser.Controller.dll` and `MediaBrowser.Model.dll`.
 
-The plugin includes extensive console logging. Open browser developer tools to see:
-- Choice timing and selection
-- Keyboard event handling
-- Video segment transitions
-- Subtitle loading status
+## Install
 
-### API Endpoints
+1. Stop Jellyfin.
+2. Copy the contents of `jellyfin-plugin/out` to
+   `<Jellyfin data>/plugins/Interactive Video Player_1.2.0.0/`
+   (Windows: `C:\ProgramData\Jellyfin\Server\plugins\...`).
+3. **Make sure the Jellyfin service account can write to that folder**, otherwise Jellyfin fails
+   to start. On Windows with the default service:
+   ```powershell
+   icacls "C:\ProgramData\Jellyfin\Server\plugins\Interactive Video Player_1.2.0.0" /grant "*S-1-5-20:(OI)(CI)F" /T
+   ```
+4. Start Jellyfin, then reload the web client (Ctrl+F5) or restart the app.
 
-- `GET /InteractiveVideo/Player/{itemId}` - Interactive player page
-- `GET /InteractiveVideo/Metadata/{itemId}` - Choice/segment metadata
-- `GET /InteractiveVideo/Subtitles/{language}` - Subtitle files
-- `POST /InteractiveVideo/Choice/{itemId}` - Record user choices
+Just play the film from your library. The choices appear on their own.
 
-## 📝 Version History
+## Credits
 
-### v1.1.0 (Latest)
-- **Enhanced Repository Structure**: Proper `manifest.json` support for Jellyfin plugin repositories
-- **Automated Releases**: GitHub Actions workflow for automatic plugin building and manifest updates
-- **Improved Installation**: Can now be installed via Jellyfin's native plugin repository system
-- **Repository URL**: `https://raw.githubusercontent.com/deathrjj/BandersnatchInteractive-Jellyfin/master/manifest.json`
+- [joric](https://github.com/joric/bandersnatch): original interactive player and branching logic
+- [CyberShadow](https://github.com/CyberShadow): many fixes and improvements
+- [mehotkhan](https://github.com/mehotkhan/BandersnatchInteractive): web page, subtitles
+- [deathrjj](https://github.com/deathrjj/BandersnatchInteractive-Jellyfin): first Jellyfin plugin
+- [adamhornofmedia](https://github.com/adamhornofmedia): Jellyfin 12.4 port, in-player choices for jellyfin-web, full choice data, touch support, story status
 
-### v1.0.0
-- **Initial Release**: Full interactive video support with choice-based navigation
-- **Complete Keyboard Controls**: F/R/Space/Arrows/0/Enter/S functionality
-- **Speed Management**: 0.25x to 4x playbook with instant reset
-- **Embedded Subtitles**: English subtitle support with toggle
-- **State Persistence**: localStorage-based choice tracking
-- **Plugin Size**: 315KB with all dependencies
+## License
 
-## 📝 Differences from Original
-
-This Jellyfin plugin extends the original BandersnatchInteractive project with:
-
-- **Jellyfin Integration**: Native plugin architecture vs standalone HTML page
-- **Server Streaming**: Video served by Jellyfin vs local file drag-and-drop
-- **Enhanced Controls**: Additional keyboard shortcuts and speed control
-- **Subtitle Integration**: Embedded subtitles vs external VTT files
-- **Plugin Management**: Installable via Jellyfin plugin repositories
-- **Automated Distribution**: GitHub Actions for releases and manifest updates
-
-## 🙏 Credits
-
-- **Original Project**: [mehotkhan/BandersnatchInteractive](https://github.com/mehotkhan/BandersnatchInteractive)
-- **Based on**: [joric/bandersnatch](https://github.com/joric/bandersnatch)
-- **Enhanced by**: [CyberShadow](https://github.com/CyberShadow)
-- **Jellyfin Integration**: [deathrjj](https://github.com/deathrjj)
-
-## ⚖️ License
-
-This project is released into the public domain under the Unlicense, same as the original BandersnatchInteractive project.
-
-## 🐛 Issues & Support
-
-If you encounter issues:
-
-1. Check that your Bandersnatch video file has the correct duration (5:12:14)
-2. Verify the plugin is properly installed and Jellyfin has been restarted
-3. Check browser console for error messages
-4. Open an issue on [GitHub Issues](https://github.com/deathrjj/BandersnatchInteractive-Jellyfin/issues)
-
-## 🚀 Future Enhancements
-
-- Support for additional interactive content
-- Multiple language subtitle support
-- Plugin configuration UI
-- Choice analytics and statistics
-- Mobile device optimization
-- Community-driven interactive content library
+Public domain under the [Unlicense](LICENSE), same as the original project.

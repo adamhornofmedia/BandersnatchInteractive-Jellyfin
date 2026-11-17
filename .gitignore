@@ -47,3 +47,4 @@ Desktop.ini
 
 # Plugin build output is intentionally included for releases
 # plugin/ directory contains the built plugin DLLs for easy download
+out/

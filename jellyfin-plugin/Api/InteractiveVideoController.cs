@@ -1,206 +1,95 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
-using System.Net.Mime;
 using System.Reflection;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.InteractiveVideo.Api
 {
     /// <summary>
-    /// Interactive Video API controller.
+    /// Serves the full original Bandersnatch interactive player (joric/CyberShadow/mehotkhan)
+    /// with the video streamed from Jellyfin. Static files live in the "web" folder next to the DLL.
     /// </summary>
     [ApiController]
     [Route("InteractiveVideo")]
     public class InteractiveVideoController : ControllerBase
     {
+        private static readonly Regex ItemIdRegex = new("^[0-9a-fA-F-]{32,36}$", RegexOptions.Compiled);
+
         private readonly ILogger<InteractiveVideoController> _logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="InteractiveVideoController"/> class.
         /// </summary>
-        /// <param name="logger">Instance of the <see cref="ILogger{InteractiveVideoController}"/> interface.</param>
+        /// <param name="logger">Logger.</param>
         public InteractiveVideoController(ILogger<InteractiveVideoController> logger)
         {
             _logger = logger;
         }
 
+        private static string WebRoot =>
+            Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "web");
+
         /// <summary>
-        /// Gets the interactive video player page.
+        /// Gets the interactive player page.
         /// </summary>
         /// <param name="itemId">The media item ID.</param>
-        /// <returns>The interactive player HTML page.</returns>
+        /// <returns>HTML page.</returns>
         [HttpGet("Player/{itemId}")]
         [AllowAnonymous]
-        [Produces(MediaTypeNames.Text.Html)]
-        public async Task<ActionResult> GetPlayerPage([FromRoute, Required] string itemId)
+        public ActionResult GetPlayerPage([FromRoute, Required] string itemId)
         {
-            try
+            if (!ItemIdRegex.IsMatch(itemId))
             {
-                var assembly = Assembly.GetExecutingAssembly();
-                var resourceName = "Jellyfin.Plugin.InteractiveVideo.Web.player.html";
-                
-                await using var stream = assembly.GetManifestResourceStream(resourceName);
-                if (stream == null)
-                {
-                    return NotFound("Player page not found");
-                }
+                return BadRequest("Invalid item id");
+            }
 
-                using var reader = new StreamReader(stream);
-                var html = await reader.ReadToEndAsync();
-                
-                // Replace placeholder with actual item ID
-                html = html.Replace("{{ITEM_ID}}", itemId);
-                
-                return Content(html, "text/html");
-            }
-            catch (Exception ex)
+            var indexPath = Path.Combine(WebRoot, "index.html");
+            if (!System.IO.File.Exists(indexPath))
             {
-                _logger.LogError(ex, "Error serving interactive player page for item {ItemId}", itemId);
-                return StatusCode(500, "Internal server error");
+                _logger.LogError("Interactive player index.html not found at {Path}", indexPath);
+                return NotFound("Player page not found");
             }
+
+            var html = System.IO.File.ReadAllText(indexPath);
+            var streamUrl = $"/Videos/{itemId}/stream?static=true&mediaSourceId={itemId}";
+            html = html.Replace("<source id=\"video-source\" src=\"\">", $"<source id=\"video-source\" src=\"{streamUrl}\" type=\"video/mp4\">", StringComparison.Ordinal);
+            html = html.Replace("src=\"assets/", "src=\"/InteractiveVideo/Web/assets/", StringComparison.Ordinal);
+            html = html.Replace("href=\"assets/", "href=\"/InteractiveVideo/Web/assets/", StringComparison.Ordinal);
+            html = html.Replace("src=\"subtitle/", "src=\"/InteractiveVideo/Web/subtitle/", StringComparison.Ordinal);
+
+            return Content(html, "text/html; charset=utf-8");
         }
 
         /// <summary>
-        /// Gets the interactive metadata for a specific media item.
+        /// Serves static player files (scripts, styles, subtitles).
         /// </summary>
-        /// <param name="itemId">The media item ID.</param>
-        /// <returns>The interactive metadata JSON.</returns>
-        [HttpGet("Metadata/{itemId}")]
+        /// <param name="path">Relative path inside the web folder.</param>
+        /// <returns>The file.</returns>
+        [HttpGet("Web/{**path}")]
         [AllowAnonymous]
-        [Produces(MediaTypeNames.Application.Json)]
-        public ActionResult GetInteractiveMetadata([FromRoute, Required] string itemId)
+        public ActionResult GetWebFile([FromRoute, Required] string path)
         {
-            try
+            var root = Path.GetFullPath(WebRoot) + Path.DirectorySeparatorChar;
+            var full = Path.GetFullPath(Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar)));
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !System.IO.File.Exists(full))
             {
-                var assembly = Assembly.GetExecutingAssembly();
-                var resourceName = "Jellyfin.Plugin.InteractiveVideo.Web.bandersnatch-metadata.json";
-                
-                using var stream = assembly.GetManifestResourceStream(resourceName);
-                if (stream == null)
-                {
-                    return NotFound("Metadata not found");
-                }
+                return NotFound();
+            }
 
-                using var reader = new StreamReader(stream);
-                var json = reader.ReadToEnd();
-                
-                return Content(json, "application/json");
-            }
-            catch (Exception ex)
+            var contentType = Path.GetExtension(full).ToLowerInvariant() switch
             {
-                _logger.LogError(ex, "Error serving interactive metadata for item {ItemId}", itemId);
-                return StatusCode(500, "Internal server error");
-            }
-        }
+                ".js" => "application/javascript; charset=utf-8",
+                ".css" => "text/css; charset=utf-8",
+                ".vtt" => "text/vtt; charset=utf-8",
+                ".html" => "text/html; charset=utf-8",
+                _ => "application/octet-stream"
+            };
 
-        /// <summary>
-        /// Gets static assets for the interactive player.
-        /// </summary>
-        /// <param name="filename">The asset filename.</param>
-        /// <returns>The requested asset.</returns>
-        [HttpGet("Assets/{filename}")]
-        [AllowAnonymous]
-        public ActionResult GetAsset([FromRoute, Required] string filename)
-        {
-            try
-            {
-                var assembly = Assembly.GetExecutingAssembly();
-                var resourceName = $"Jellyfin.Plugin.InteractiveVideo.Web.{filename}";
-                
-                using var stream = assembly.GetManifestResourceStream(resourceName);
-                if (stream == null)
-                {
-                    return NotFound("Asset not found");
-                }
-
-                var contentType = filename.EndsWith(".js") ? "application/javascript" :
-                                filename.EndsWith(".css") ? "text/css" :
-                                filename.EndsWith(".vtt") ? "text/vtt" :
-                                "application/octet-stream";
-
-                using var reader = new StreamReader(stream);
-                var content = reader.ReadToEnd();
-                
-                return Content(content, contentType);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error serving asset {Filename}", filename);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        /// <summary>
-        /// Gets subtitle files for the interactive player.
-        /// </summary>
-        /// <param name="language">The subtitle language.</param>
-        /// <returns>The requested subtitle file.</returns>
-        [HttpGet("Subtitles/{language}")]
-        [AllowAnonymous]
-        [Produces("text/vtt")]
-        public ActionResult GetSubtitle([FromRoute, Required] string language)
-        {
-            try
-            {
-                var assembly = Assembly.GetExecutingAssembly();
-                string resourceName;
-                
-                // Map language codes to subtitle files
-                switch (language.ToLowerInvariant())
-                {
-                    case "en":
-                    case "english":
-                        resourceName = "Jellyfin.Plugin.InteractiveVideo.Web.english-subtitles.vtt";
-                        break;
-                    default:
-                        return NotFound($"Subtitle language '{language}' not available");
-                }
-                
-                using var stream = assembly.GetManifestResourceStream(resourceName);
-                if (stream == null)
-                {
-                    return NotFound("Subtitle file not found");
-                }
-
-                using var reader = new StreamReader(stream);
-                var content = reader.ReadToEnd();
-                
-                Response.Headers.Add("Content-Type", "text/vtt; charset=utf-8");
-                return Content(content, "text/vtt");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error serving subtitle {Language}", language);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        /// <summary>
-        /// Records user choice for analytics or debugging.
-        /// </summary>
-        /// <param name="itemId">The media item ID.</param>
-        /// <param name="choiceData">The choice data.</param>
-        /// <returns>Success response.</returns>
-        [HttpPost("Choice/{itemId}")]
-        [AllowAnonymous]
-        [Produces(MediaTypeNames.Application.Json)]
-        public ActionResult RecordChoice([FromRoute, Required] string itemId, [FromBody] object choiceData)
-        {
-            try
-            {
-                _logger.LogInformation("Choice recorded for item {ItemId}: {ChoiceData}", itemId, choiceData);
-                return Ok(new { success = true });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error recording choice for item {ItemId}", itemId);
-                return StatusCode(500, "Internal server error");
-            }
+            return PhysicalFile(full, contentType);
         }
     }
-} 
+}
